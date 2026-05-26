@@ -1,8 +1,12 @@
 {
-  "name": "kangaroo",
+  "name": "@siddharth-karna/kangaroo",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "A smart, type-safe, and hassle-free Redis caching wrapper for Node.js applications.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "start": "tsx src/index.ts",
     "build": "tsc",
