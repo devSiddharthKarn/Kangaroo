@@ -1,6 +1,6 @@
 {
   "name": "@siddharth-karna/kangaroo",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A smart, type-safe, and hassle-free Redis caching wrapper for Node.js applications.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
