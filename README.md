@@ -21,7 +21,9 @@ pnpm add kangaroo ioredis
 # or yarn add kangaroo ioredis
 ```
 
-## Quick Start
+## Real-Life Quick Start: E-Commerce Product Caching
+
+Instead of limiting yourself to string keys, Kangaroo lets you use **complex query objects** as cache keys, and caches back the exact response type. Here is how you can cache an e-commerce search with multiple filters!
 
 ```typescript
 import { Kangaroo } from "kangaroo";
@@ -33,17 +35,50 @@ const redis = new Redis("redis://localhost:6379");
 // 2. Pass it to Kangaroo
 const cache = new Kangaroo(redis);
 
-// 3. Create a bucket that expects a string key and stores User objects
-const usersBucket = cache.createCacheBucket<string, { name: string, age: number }>();
+// Types for our real-world use case
+type ProductSearchFilters = { category: string; minPrice: number; maxPrice: number; inStockOnly: boolean };
+type ProductSearchResult = { products: { id: string; name: string; price: number }[]; totalFound: number };
+
+// 3. Create a bucket. The Key is an Object and the Value is an Object!
+const productSearchBucket = cache.createCacheBucket<ProductSearchFilters, ProductSearchResult>();
+
+async function searchProducts(filters: ProductSearchFilters) {
+    // 4. Wrap automatically checks Redis using the object key!
+    return await productSearchBucket.wrap({
+        key: filters,
+        timePeriod: 300, // Cache for 5 minutes
+        whatIf: async () => {
+            console.log("⚠️ Cache miss! Querying expensive database operation...");
+            
+            // Simulating an expensive DB query using the filters object
+            // const dbResults = await db.query('...', filters);
+            
+            return {
+                products: [
+                    { id: "p_1", name: "Wireless Headphones", price: 99.99 },
+                    { id: "p_2", name: "Bluetooth Speaker", price: 59.99 }
+                ],
+                totalFound: 2
+            };
+        }
+    });
+}
 
 async function run() {
-    // Set a value (expires in 3600 seconds)
-    await usersBucket.set("user:1", { name: "Alice", age: 30 }, 3600);
+    const userFilters = { category: "audio", minPrice: 50, maxPrice: 150, inStockOnly: true };
 
-    // Get a value (fully typed!)
-    const user = await usersBucket.get("user:1");
-    // TypeScript knows `user` has a `name` property!
-    console.log(user?.name); // "Alice"
+    // First call: Runs the `whatIf` database query
+    const results1 = await searchProducts(userFilters);
+
+    // Second call: Instantly returns from Redis! It hashes the object deterministically.
+    const results2 = await searchProducts({ 
+        inStockOnly: true, 
+        maxPrice: 150, 
+        category: "audio", 
+        minPrice: 50 
+    }); // Property order doesn't matter!
+
+    console.log(`Found ${results2.totalFound} products.`);
 }
 
 run();

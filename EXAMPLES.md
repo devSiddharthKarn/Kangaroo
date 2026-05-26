@@ -2,11 +2,11 @@
 
 Here are some common patterns and examples to help you get the most out of Kangaroo and convince you why it's the right choice for your caching layers.
 
-## 1. The Magic of `.wrap()` (Read-Through Cache)
+## 1. The Magic of `.wrap()`: Dashboard Analytics
 
-Normally, fetching data securely requires checking the cache, writing an `if (!cached)` block, querying the DB, saving it to the cache, and then finally returning it.
+Generating dashboard analytics usually requires expensive aggregation queries across multiple database tables. You don't want every user refresh to hammer your DB.
 
-The `.wrap()` method dramatically reduces this boilerplate. It checks Redis first. If it's a "cache miss", it executes your callback, caches the response for you, and returns the strictly-typed data.
+The `.wrap()` method handles this elegantly. It checks Redis first. If it's a "cache miss", it executes your heavy DB query, saves the result to Redis automatically, and returns the strictly-typed data.
 
 ```typescript
 import { Kangaroo } from "kangaroo";
@@ -15,67 +15,99 @@ import Redis from "ioredis";
 const redis = new Redis();
 const cache = new Kangaroo(redis);
 
-// Setup a bucket for querying users from PostgreSQL, MongoDB, etc.
-const dbQueryBucket = cache.createCacheBucket<string, { id: string, email: string }>();
+type AnalyticsRequest = { orgId: string; dateRange: "7d" | "30d" | "90d" };
+type AnalyticsData = { totalRevenue: number; activeUsers: number; topPaths: string[] };
 
-async function getUser(userId: string) {
-    return await dbQueryBucket.wrap({
-        key: `user:${userId}`,
-        timePeriod: 60, // Cache for 60 seconds
+// Setup a bucket specifically for Analytics
+const analyticsBucket = cache.createCacheBucket<AnalyticsRequest, AnalyticsData>();
+
+async function getDashboardData(req: AnalyticsRequest) {
+    return await analyticsBucket.wrap({
+        key: req,
+        timePeriod: 3600, // Aggregate data only once an hour!
         whatIf: async () => {
-            console.log("⚠️ Cache miss! Fetching from Database...");
+            console.log(`⚠️ Cache miss for Org ${req.orgId}! Running heavy aggregations...`);
             
-            // This only runs if the cache is empty or expired!
-            // const dbUser = await db.query('SELECT * FROM users WHERE id = ?', userId);
+            // This only runs once per hour per combination of orgId and dateRange
+            // const revenue = await db.query('SELECT SUM(amount) FROM sales WHERE org_id = ? AND date > ?', ...);
             
-            return { id: userId, email: "test@example.com" }; 
+            return { 
+                totalRevenue: 15420.50, 
+                activeUsers: 142,
+                topPaths: ["/home", "/checkout", "/catalog"]
+            }; 
         }
     });
 }
 
-// First call: Logs "⚠️ Cache miss!..."
-await getUser("1002"); 
+// First call: Logs "⚠️ Cache miss!..." and computes
+await getDashboardData({ orgId: "org_alpha", dateRange: "30d" }); 
 
-// Second call: Instantly returns from Redis!
-await getUser("1002"); 
+// Second call: Instantly returns from Redis memory!
+await getDashboardData({ orgId: "org_alpha", dateRange: "30d" }); 
 ```
 
-## 2. Using Complex Objects as Cache Keys
+## 2. Using Complex Objects as Cache Keys: Flight Search
 
-Normally in Redis, keys must be simple strings. If you want to cache a query that takes multiple filters (like a location), you'd have to construct dirty strings like `cache:search:lat40:lng-74`. 
+Normally in Redis, keys must be simple strings. If you want to cache a flight search with origin, destination, passengers, and dates, you'd have to construct dirty strings like `cache:flights:JFK:LHR:2:2024-12-01`. 
 
-With Kangaroo, you can use full objects as keys. Kangaroo deterministically stringifies them, meaning `{ lat: 40, lng: -74 }` and `{ lng: -74, lat: 40 }` evaluate to the exact same cache key, regardless of property order!
+With Kangaroo, you can use full nested objects as keys. Kangaroo deterministically stringifies them, meaning order doesn't matter!
 
 ```typescript
-// Key is an object!
-const locationBucket = cache.createCacheBucket<{ lat: number, lng: number }, { city: string, weather: string }>();
+type FlightSearchQuery = {
+    origin: string;
+    destination: string;
+    passengers: number;
+    dates: { outbound: string; return?: string };
+};
 
-// Set using an object
-await locationBucket.set(
-    { lat: 40.7128, lng: -74.0060 }, 
-    { city: "New York", weather: "Sunny" }, 
-    3600 // Expire in 1 hour
+type FlightResults = { airlines: string[]; cheapestPrice: number };
+
+// Key is an object! Value is an object!
+const flightSearchBucket = cache.createCacheBucket<FlightSearchQuery, FlightResults>();
+
+// Set using an object directly
+await flightSearchBucket.set(
+    { 
+        origin: "JFK", 
+        destination: "LHR", 
+        passengers: 2, 
+        dates: { outbound: "2024-12-01", return: "2024-12-14" } 
+    }, 
+    { airlines: ["Delta", "British Airways"], cheapestPrice: 540.00 }, 
+    600 // Expire in 10 minutes (prices change fast!)
 );
 
-// Retrieve using an object (even if the parameters are provided in a different order!)
-const result = await locationBucket.get({ lng: -74.0060, lat: 40.7128 });
+// Retrieve using an object (even if the properties are provided in a completely different order!)
+const result = await flightSearchBucket.get({ 
+    passengers: 2,
+    dates: { return: "2024-12-14", outbound: "2024-12-01" }, // Nested order changed!
+    destination: "LHR", 
+    origin: "JFK"
+});
 
-console.log(result?.city); // "New York"
+console.log(result?.cheapestPrice); // 540.00
 ```
 
-## 3. Manual Invalidation (Deletion)
+## 3. Manual Invalidation (Deletion): User Profile Updates
 
-When users update their profile or log out, you need to clear their cache gracefully to avoid stale data. Use `.delete()`.
+When users update their profile, you need to clear their cached public profile immediately to avoid showing stale data to other users.
 
 ```typescript
-const sessionBucket = cache.createCacheBucket<string, { token: string }>();
+type UserId = { id: string };
+type UserProfile = { username: string; bio: string; avatarUrl: string };
 
-async function logout(sessionId: string) {
-    // Attempt deletion
-    const removedCount = await sessionBucket.delete(`session:${sessionId}`);
+const profileBucket = cache.createCacheBucket<UserId, UserProfile>();
+
+async function updateBio(userId: string, newBio: string) {
+    // 1. Update the database
+    // await db.query('UPDATE profiles SET bio = ? WHERE id = ?', newBio, userId);
+
+    // 2. Wipe the old cache securely using the exact object structure
+    const removedCount = await profileBucket.delete({ id: userId });
     
     if (removedCount && removedCount > 0) {
-        console.log("Successfully logged out and cleared cache!");
+        console.log("Successfully updated bio and purged old cache!");
     }
 }
 ```
