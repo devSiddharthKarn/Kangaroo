@@ -42,13 +42,15 @@ type TSetData<TKey, TValue> = {
  */
 class CacheBucket<TKey, TValue> {
     private connection: Redis;
+    private prefix:string;
 
-    constructor(connection: Redis) {
+    constructor(connection: Redis,prefix:string) {
         this.connection = connection
+        this.prefix=prefix;
     }
 
     private hashKey(key: TKey): string {
-        return stableStringify(key);
+        return (this.prefix+stableStringify(key));
     }
 
     /**
