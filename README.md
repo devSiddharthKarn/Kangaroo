@@ -16,9 +16,10 @@ Stop writing the same Redis boilerplate over and over. Kangaroo provides a stric
 ## Installation
 
 ```bash
-pnpm add kangaroo ioredis
-# or npm install kangaroo ioredis
-# or yarn add kangaroo ioredis
+npm i @siddharth-karna/kangaroo
+pnpm i @siddharth-karna/kangaroo
+yarn add @siddharth-karna/kangaroo
+bun add @siddharth-karna/kangaroo
 ```
 
 ## Real-Life Quick Start: E-Commerce Product Caching
