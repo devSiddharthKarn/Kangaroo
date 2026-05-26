@@ -13,7 +13,7 @@ class Kangaroo {
     }
 
     /**
-     * The createCacheBucket function that will be used to create a new cache bucket, it takes two generic types TKey and TValue which represent the type of the key and value that will be stored in the cache bucket, it returns an instance of the CacheBucket class that can be used to interact with the cache
+     * The createCacheBucket function that will be used to create cache buckets, it takes a name as a parameter which will be used as a prefix for the keys in that bucket, it returns an instance of the CacheBucket class which can be used to interact with the cache
      */
     public createCacheBucket<TKey, TValue>(name:string) {
         return new CacheBucket<TKey, TValue>(this.redisConnection,name);

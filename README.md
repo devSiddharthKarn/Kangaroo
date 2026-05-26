@@ -9,7 +9,8 @@ Stop writing the same Redis boilerplate over and over. Kangaroo provides a stric
 ## Why use Kangaroo?
 
 - 🛡️ **End-to-End Type Safety**: Define exact types for your cache keys AND values. No more `any` or `JSON.parse(string)` guesswork.
-- 🔑 **Smart Object Hashing**: Uses `fast-json-stable-stringify` under the hood. You can use full Javascript objects as cache keys (e.g. `bucket.get({ id: 1, type: "user" })`), and Kangaroo will securely and deterministically hash them so key order doesn't matter!
+- �️ **Bucket Namespacing**: Pass a prefix to your buckets (e.g. `createCacheBucket("users")`). Kangaroo isolates your keys behind the scenes so a `{id: 1}` key in the users bucket doesn't collide with an `{id: 1}` key in your products bucket!
+- �🔑 **Smart Object Hashing**: Uses `fast-json-stable-stringify` under the hood. You can use full Javascript objects as cache keys (e.g. `bucket.get({ id: 1, type: "user" })`), and Kangaroo will securely and deterministically hash them so key order doesn't matter!
 - 🔄 **Read-Through Caching**: The magical `.wrap()` method automatically checks the cache. If it misses, it automatically runs your fallback database query, saves the result to Redis for you, and returns the data.
 - ⚡ **Lightweight**: Built on top of the battle-tested `ioredis` library.
 
@@ -40,8 +41,8 @@ const cache = new Kangaroo(redis);
 type ProductSearchFilters = { category: string; minPrice: number; maxPrice: number; inStockOnly: boolean };
 type ProductSearchResult = { products: { id: string; name: string; price: number }[]; totalFound: number };
 
-// 3. Create a bucket. The Key is an Object and the Value is an Object!
-const productSearchBucket = cache.createCacheBucket<ProductSearchFilters, ProductSearchResult>();
+// 3. Create a bucket. Give it a namespace ("product-search"), and fully type the Key and Value!
+const productSearchBucket = cache.createCacheBucket<ProductSearchFilters, ProductSearchResult>("product-search");
 
 async function searchProducts(filters: ProductSearchFilters) {
     // 4. Wrap automatically checks Redis using the object key!

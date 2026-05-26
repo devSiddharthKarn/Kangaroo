@@ -18,8 +18,8 @@ const cache = new Kangaroo(redis);
 type AnalyticsRequest = { orgId: string; dateRange: "7d" | "30d" | "90d" };
 type AnalyticsData = { totalRevenue: number; activeUsers: number; topPaths: string[] };
 
-// Setup a bucket specifically for Analytics
-const analyticsBucket = cache.createCacheBucket<AnalyticsRequest, AnalyticsData>();
+// Setup a bucket specifically for Analytics, isolating its keys with the "analytics" namespace
+const analyticsBucket = cache.createCacheBucket<AnalyticsRequest, AnalyticsData>("analytics");
 
 async function getDashboardData(req: AnalyticsRequest) {
     return await analyticsBucket.wrap({
@@ -63,8 +63,8 @@ type FlightSearchQuery = {
 
 type FlightResults = { airlines: string[]; cheapestPrice: number };
 
-// Key is an object! Value is an object!
-const flightSearchBucket = cache.createCacheBucket<FlightSearchQuery, FlightResults>();
+// Give it a namespace ("flights"), an object Key, and an object Value!
+const flightSearchBucket = cache.createCacheBucket<FlightSearchQuery, FlightResults>("flights");
 
 // Set using an object directly
 await flightSearchBucket.set(
@@ -97,7 +97,7 @@ When users update their profile, you need to clear their cached public profile i
 type UserId = { id: string };
 type UserProfile = { username: string; bio: string; avatarUrl: string };
 
-const profileBucket = cache.createCacheBucket<UserId, UserProfile>();
+const profileBucket = cache.createCacheBucket<UserId, UserProfile>("profiles");
 
 async function updateBio(userId: string, newBio: string) {
     // 1. Update the database
@@ -114,12 +114,12 @@ async function updateBio(userId: string, newBio: string) {
 
 ## 4. Total Type Isolation
 
-Every time you call `createCacheBucket<TKey, TValue>()`, you create a strongly bounded namespace in TypeScript. You physically cannot pass the wrong data type into the `.set` method without your IDE throwing an error saving you hours of debugging.
+Every time you call `createCacheBucket<TKey, TValue>("prefix")`, you create a strongly bounded namespace in TypeScript and Redis. You physically cannot pass the wrong data type into the `.set` method without your IDE throwing an error saving you hours of debugging.
 
 ```typescript
 interface Article { title: string; views: number }
 
-const articles = cache.createCacheBucket<number, Article>();
+const articles = cache.createCacheBucket<number, Article>("articles");
 
 // ❌ TypeScript Error: Property 'views' is missing
 await articles.set(12, { title: "Hello World" }, 60);
