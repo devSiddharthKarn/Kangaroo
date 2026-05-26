@@ -223,6 +223,10 @@ class CacheBucket<TKey, TValue> {
             throw error;
         }
     }
+
+    public getOriginalInstance():Redis{
+        return this.connection;
+    }
 }
 
 

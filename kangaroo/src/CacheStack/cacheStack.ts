@@ -1,5 +1,4 @@
 import { Redis } from "ioredis"
-import stableStringify from "fast-json-stable-stringify"
 import { CacheBucket } from "../CacheBucket/cacheBucket.js";
 
 type TSetData<TData> = {
@@ -82,6 +81,9 @@ class CacheStack<TData> {
         }
     }
 
+    /*
+        * Returns the top element of the stack without removing it. It retrieves the value from the cache bucket using the current pointer as part of the key.
+    */
     public async top() {
         try {
             if (this.pointer == -1) return null;
@@ -89,6 +91,33 @@ class CacheStack<TData> {
             const key = this.key(this.pointer);
             const data = this.cacheBucket.get(key);
             return data;
+        } catch (error) {
+            console.error("Error:", error);
+            throw error;
+        }
+    }
+
+    /*
+        * Clears the entire stack by deleting all the keys in the cache bucket that are part of the stack. It uses a pipeline to delete all the keys at once and resets the pointer to -1.
+    */
+    public async clear() {
+        try {
+            const redis = this.cacheBucket.getOriginalInstance();
+            const pipeline = redis.pipeline();
+
+            const keys: string[] = [];
+
+            for (let i = this.pointer; i >= 0; i--) {
+                keys.push(this.key(i));
+            }
+
+            this.pointer = -1;
+
+            if (keys.length > 0) {
+                pipeline.del(...keys);
+            }
+
+            await pipeline.exec();
         } catch (error) {
             console.error("Error:", error);
             throw error;
