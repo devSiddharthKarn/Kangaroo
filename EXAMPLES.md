@@ -112,39 +112,7 @@ async function updateBio(userId: string, newBio: string) {
 }
 ```
 
-## 4. The Cache Stack: Temporary "Undo" Actions
-
-If you are building an editor, dashboard, or drawing tool, users often need an **"Undo"** functionality. Storing these large state objects in the client's browser crashes the tab. Storing them permanently in the database bloats your tables.
-
-By using Kangaroo's `CacheStack`, you get an automatic Last-In-First-Out (LIFO) undo log that lives securely in Redis, and automatically expires after an hour!
-
-```typescript
-// Setup an undo stack for a specific document with the namespace "doc:999:undo"
-type DrawingState = { action: string; shapes: string[]; color: string };
-const undoStack = cache.createCacheStack<DrawingState>("doc:999:undo");
-
-async function drawCircle() {
-    const currentState = { action: "draw", shapes: ["circle"], color: "blue" };
-
-    // Push the state to Redis, keep it for only 1 hour
-    await undoStack.push({ data: currentState, timePeriod: 3600 });
-}
-
-async function undoLastAction() {
-    // Is the stack empty?
-    if (undoStack.size() === 0) {
-        return console.log("Nothing to undo!");
-    }
-
-    // Pop the latest state off the stack
-    const restoredState = await undoStack.pop();
-    
-    console.log(`Reverting document state to: ${restoredState?.action}`);
-    // Output: Reverting document state to: draw
-}
-```
-
-## 5. Total Type Isolation
+## 4. Total Type Isolation
 
 Every time you call `createCacheBucket<TKey, TValue>("prefix")`, you create a strongly bounded namespace in TypeScript and Redis. You physically cannot pass the wrong data type into the `.set` method without your IDE throwing an error saving you hours of debugging.
 

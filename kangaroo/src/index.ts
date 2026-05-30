@@ -20,7 +20,7 @@ class Kangaroo {
 
 
     /**
-     * gets the original Redis instance that was passed in the constructor, this can be used to perform any Redis operations that are not covered by the CacheBucket and CacheStack classes
+     * gets the original Redis instance that was passed in the constructor, this can be used to perform Redis operations that are not covered by CacheBucket
      * @returns Redis instance
      */
     public getOriginalInstance():Redis{
