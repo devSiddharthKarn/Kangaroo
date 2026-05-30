@@ -6,6 +6,35 @@
 
 Stop writing the same Redis boilerplate over and over. Kangaroo provides a strictly typed `CacheBucket` that magically handles object-key hashing, JSON serialization, and read-through caching so you can focus on building your app.
 
+## Before And After
+
+Before Kangaroo, a simple cache lookup usually meant manually building keys, serializing values, and handling misses yourself:
+
+```typescript
+const key = `user:${userId}`;
+const cached = await redis.get(key);
+
+if (cached) {
+    return JSON.parse(cached);
+}
+
+const fresh = await loadUser(userId);
+await redis.set(key, JSON.stringify(fresh), "EX", 300);
+return fresh;
+```
+
+With Kangaroo, the same flow becomes a single typed call:
+
+```typescript
+const users = cache.createCacheBucket<{ id: string }, { name: string }>("users");
+
+const user = await users.wrap({
+    key: { id: userId },
+    timePeriod: 300,
+    whatIf: async () => loadUser(userId),
+});
+```
+
 ## Why use Kangaroo?
 
 - 🛡️ **End-to-End Type Safety**: Define exact types for your cache keys AND values. No more `any` or `JSON.parse(string)` guesswork.

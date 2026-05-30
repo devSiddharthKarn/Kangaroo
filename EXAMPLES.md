@@ -2,6 +2,38 @@
 
 Here are some common patterns and examples to help you get the most out of Kangaroo and convince you why it's the right choice for your caching layers.
 
+## 0. Before And After: What Kangaroo Replaces
+
+Before this package, a basic cache lookup was usually manual Redis code:
+
+```typescript
+const key = `profile:${userId}`;
+const cached = await redis.get(key);
+
+if (cached) {
+    return JSON.parse(cached);
+}
+
+const profile = await fetchProfile(userId);
+await redis.set(key, JSON.stringify(profile), "EX", 600);
+return profile;
+```
+
+With Kangaroo, the same thing becomes a typed bucket and a single `wrap()` call:
+
+```typescript
+type ProfileKey = { id: string };
+type Profile = { name: string; bio: string };
+
+const profileBucket = cache.createCacheBucket<ProfileKey, Profile>("profiles");
+
+const profile = await profileBucket.wrap({
+    key: { id: userId },
+    timePeriod: 600,
+    whatIf: async () => fetchProfile(userId),
+});
+```
+
 ## 1. The Magic of `.wrap()`: Dashboard Analytics
 
 Generating dashboard analytics usually requires expensive aggregation queries across multiple database tables. You don't want every user refresh to hammer your DB.
